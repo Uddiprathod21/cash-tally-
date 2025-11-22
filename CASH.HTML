@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cash Denomination & Tally</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 650px;
+        }
+
+        h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 25px;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Table Styling */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th { text-align: left; color: #7f8c8d; padding: 10px; font-size: 0.9em; }
+        td { padding: 8px 5px; vertical-align: middle; }
+        
+        .note-label { font-weight: bold; color: #2c3e50; font-size: 1.1em; width: 80px;}
+        .row-total { font-weight: bold; color: #333; text-align: right; width: 100px;}
+
+        input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #dfe6e9;
+            border-radius: 6px;
+            font-size: 1em;
+            text-align: center;
+            transition: border 0.3s;
+        }
+        input[type="number"]:focus { border-color: #3498db; outline: none; background-color: #fbfbfb; }
+
+        /* Result Section Styling */
+        .result-box {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .flex-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .total-label { font-size: 1.2em; font-weight: bold; color: #2c3e50; }
+        .total-amount { font-size: 1.5em; font-weight: bold; color: #27ae60; }
+
+        /* Words Display */
+        .words-display {
+            font-style: italic;
+            color: #555;
+            background: #fff;
+            padding: 10px;
+            border: 1px dashed #ccc;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 0.95em;
+            min-height: 20px;
+        }
+
+        /* Teller Balance Section */
+        .teller-section {
+            margin-top: 15px;
+            border-top: 1px solid #ddd;
+            padding-top: 15px;
+        }
+        
+        .diff-display { font-weight: bold; font-size: 1.2em; }
+        .status-match { color: #27ae60; } /* Green */
+        .status-short { color: #e74c3c; } /* Red */
+        .status-excess { color: #2980b9; } /* Blue */
+
+        /* Buttons */
+        .btn-container { margin-top: 25px; display: flex; gap: 10px; justify-content: center;}
+        button {
+            padding: 12px 30px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.3s;
+        }
+        .btn-reset { background-color: #95a5a6; color: white; }
+        .btn-print { background-color: #3498db; color: white; }
+        button:hover { opacity: 0.9; }
+
+        @media print {
+            body { background-color: white; padding: 0; }
+            .container { box-shadow: none; border: none; width: 100%; max-width: 100%; }
+            button { display: none; }
+            input[type="number"] { border: none; text-align: center; font-weight: bold;}
+            /* Hide empty inputs when printing? Optional. */
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Cash Calculator</h2>
+
+    <form id="cashForm">
+        <table>
+            <thead>
+                <tr>
+                    <th>Note</th>
+                    <th style="text-align:center">Count</th>
+                    <th style="text-align:right">Total</th>
+                </tr>
+            </thead>
+            <tbody id="denomination-body">
+                </tbody>
+        </table>
+    </form>
+
+    <div class="result-box">
+        <div class="flex-row">
+            <span class="total-label">Total Cash</span>
+            <span class="total-amount" id="grandTotal">₹0</span>
+        </div>
+        
+        <div id="wordsOutput" class="words-display">Zero Rupees Only</div>
+
+        <div class="teller-section">
+            <div class="flex-row">
+                <span class="note-label" style="width:auto;">System Balance (Optional):</span>
+                <input type="number" id="tellerBalance" placeholder="Enter System Amount" 
+                       style="width: 150px; text-align:right;" oninput="calculateDifference()">
+            </div>
+            <div class="flex-row">
+                <span class="total-label" style="font-size:1em;">Difference:</span>
+                <span class="diff-display status-match" id="differenceDisplay">₹0</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="btn-container">
+        <button type="button" class="btn-reset" onclick="resetForm()">Reset</button>
+        <button type="button" class="btn-print" onclick="window.print()">Print / Save PDF</button>
+    </div>
+</div>
+
+<script>
+    const denominations = [500, 200, 100, 50, 20, 10, 5, 2, 1];
+    const tbody = document.getElementById('denomination-body');
+    const grandTotalEl = document.getElementById('grandTotal');
+    const wordsOutput = document.getElementById('wordsOutput');
+    const tellerInput = document.getElementById('tellerBalance');
+    const diffDisplay = document.getElementById('differenceDisplay');
+    
+    let currentGrandTotal = 0;
+
+    // 1. Generate Rows
+    denominations.forEach(val => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="note-label">₹${val}</td>
+            <td>
+                <input type="number" min="0" placeholder="" 
+                       class="count-input" data-value="${val}" 
+                       oninput="calculateAll()">
+            </td>
+            <td class="row-total" id="total-${val}">-</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // 2. Main Calculation Controller
+    function calculateAll() {
+        calculateCashTotal();
+        convertTotalToWords();
+        calculateDifference();
+    }
+
+    // 3. Calculate Physical Cash
+    function calculateCashTotal() {
+        let grandTotal = 0;
+        const inputs = document.querySelectorAll('.count-input');
+
+        inputs.forEach(input => {
+            const count = parseInt(input.value) || 0;
+            const value = parseInt(input.dataset.value);
+            const rowSum = count * value;
+
+            const rowDisplay = document.getElementById(`total-${value}`);
+            rowDisplay.innerText = rowSum === 0 ? "-" : rowSum.toLocaleString('en-IN');
+            
+            // Highlight active rows
+            if(count > 0) {
+                input.style.backgroundColor = "#e8f6f3";
+                input.style.borderColor = "#27ae60";
+            } else {
+                input.style.backgroundColor = "";
+                input.style.borderColor = "#dfe6e9";
+            }
+
+            grandTotal += rowSum;
+        });
+
+        currentGrandTotal = grandTotal;
+        grandTotalEl.innerText = "₹" + grandTotal.toLocaleString('en-IN');
+    }
+
+    // 4. Calculate Difference (Teller vs Physical)
+    function calculateDifference() {
+        const systemBalance = parseInt(tellerInput.value) || 0;
+        
+        // If system balance is empty/0, just show 0 diff
+        if (systemBalance === 0 && tellerInput.value === "") {
+            diffDisplay.innerText = "-";
+            diffDisplay.className = "diff-display";
+            return;
+        }
+
+        const difference = currentGrandTotal - systemBalance;
+        
+        if (difference === 0) {
+            diffDisplay.innerText = "Matched ✅";
+            diffDisplay.className = "diff-display status-match";
+        } else if (difference > 0) {
+            diffDisplay.innerText = "+ ₹" + difference.toLocaleString('en-IN') + " (Excess)";
+            diffDisplay.className = "diff-display status-excess";
+        } else {
+            diffDisplay.innerText = "- ₹" + Math.abs(difference).toLocaleString('en-IN') + " (Short)";
+            diffDisplay.className = "diff-display status-short";
+        }
+    }
+
+    // 5. Indian Number to Words Logic
+    function convertTotalToWords() {
+        if (currentGrandTotal === 0) {
+            wordsOutput.innerText = "Zero Rupees Only";
+            return;
+        }
+        wordsOutput.innerText = inWords(currentGrandTotal) + " Rupees Only";
+    }
+
+    function inWords(num) {
+        const a = ['','One ','Two ','Three ','Four ','Five ','Six ','Seven ','Eight ','Nine ','Ten ','Eleven ','Twelve ','Thirteen ','Fourteen ','Fifteen ','Sixteen ','Seventeen ','Eighteen ','Nineteen '];
+        const b = ['', '', 'Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+
+        if ((num = num.toString()).length > 9) return 'Overflow';
+        
+        let n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+        if (!n) return; 
+        
+        let str = '';
+        str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'Crore ' : '';
+        str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'Lakh ' : '';
+        str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'Thousand ' : '';
+        str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'Hundred ' : '';
+        str += (n[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
+        
+        return str;
+    }
+
+    function resetForm() {
+        document.getElementById('cashForm').reset();
+        document.querySelectorAll('.row-total').forEach(el => el.innerText = '-');
+        document.querySelectorAll('.count-input').forEach(el => {
+            el.style.backgroundColor = "";
+            el.style.borderColor = "#dfe6e9";
+        });
+        grandTotalEl.innerText = '₹0';
+        wordsOutput.innerText = "Zero Rupees Only";
+        tellerInput.value = "";
+        diffDisplay.innerText = "-";
+        currentGrandTotal = 0;
+    }
+</script>
+
+</body>
+</html>
